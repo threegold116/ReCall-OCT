@@ -2,8 +2,7 @@
 
 # ***ReSearch***: Learning to ***Re***ason with ***Search*** for LLMs via Reinforcement Learning
 
-[![Arxiv](https://img.shields.io/badge/paper-A82F27?style=for-the-badge&logo=arxiv)](https://arxiv.org/abs/2503.19470) 
-<!-- [![Model](https://img.shields.io/badge/model-4169E1?style=for-the-badge&logo=huggingface)](https://arxiv.org/abs/2503.19470)  -->
+[![Arxiv](https://img.shields.io/badge/paper-A82F27?style=for-the-badge&logo=arxiv)](https://arxiv.org/abs/2503.19470) [![Model](https://img.shields.io/badge/model-4169E1?style=for-the-badge&logo=huggingface)](https://huggingface.co/collections/agentrl/research-67e506a0311bea06dc54878b) 
 
 </div>
 
@@ -15,6 +14,7 @@
 We propose ***ReSearch***, a novel framework that trains LLMs to ***Re***ason with ***Search*** via reinforcement learning without using any supervised data on reasoning steps. Our approach treats search operations as integral components of the reasoning chain, where when and how to perform searches is guided by text-based thinking, and search results subsequently influence further reasoning.
 
 ## 📰 News
+- **[2025-03-27]** 🤗 We release our trained models on [Hugging Face](https://huggingface.co/collections/agentrl/research-67e506a0311bea06dc54878b), please check it out! 
 - **[2025-03-26]** 🎉 We release the paper, update the code and open-source the models.
   - 📝 The **paper is released** on arXiv, more details and evaluation results can be found in our [paper](https://arxiv.org/abs/2503.19470).
   - 🛠️ The **repository is updated** with the new implementation, especially the rollout with search during RL training. This version of implementation is based on the latest release of verl.
@@ -154,7 +154,7 @@ If you find this work useful, please cite it as follows:
 ```bibtex
 @misc{chen2025research
   title={ReSearch: Learning to Reason with Search for LLMs via Reinforcement Learning}, 
-  author={Mingyang Chen and Tianpeng Li and Haoze Sun and Yijie Zhou and Chenzheng Zhu and Fan Yang and Zenan Zhou and Weipeng Chen and Haofen Wang and Jeff Z. Pan and Wen Zhang and Huajun Chen},
+  author={Mingyang Chen and Tianpeng Li and Haoze Sun and Yijie Zhou and Chenzheng Zhu and Haofen Wang and Jeff Z. Pan and Wen Zhang and Huajun Chen and Fan Yang and Zenan Zhou and Weipeng Chen},
   year={2025},
   eprint={2503.19470},
   archivePrefix={arXiv},
