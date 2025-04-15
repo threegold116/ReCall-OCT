@@ -86,7 +86,7 @@ class ReSearchPipeline(BasicPipeline):
             else:
                 raise ValueError(f"stop_reason: {stop_reason}, stop_matched: {stop_matched}")
                 
-            remain_length -= response['meta_info']['prompt_tokens'] + response['meta_info']['completion_tokens']
+            remain_length = self.config['generator_max_input_len'] - (response['meta_info']['prompt_tokens'] + response['meta_info']['completion_tokens'])
         
         final_response = query.replace(init_query, "")
         item.update_output("final_response", final_response)
