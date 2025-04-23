@@ -71,35 +71,35 @@ def ircot(args, config_dict):
 
     result = pipeline.run(test_data)
 
-def research(args, config_dict):
+def re_call(args, config_dict):
     config = Config(args.config_path, config_dict)
     all_split = get_dataset(config)
     test_data = all_split[args.split]
     
-    from flashrag.pipeline import ReSearchPipeline
-    pipeline = ReSearchPipeline(config, apply_chat=args.apply_chat)
+    from flashrag.pipeline import ReCallPipeline
+    pipeline = ReCallPipeline(config)
     result = pipeline.run(test_data)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Running exp")
     parser.add_argument("--config_path", type=str, default="./eval_config.yaml")
-    parser.add_argument("--method_name", type=str, default="research")
+    parser.add_argument("--method_name", type=str, default="re-call")
     parser.add_argument("--data_dir", type=str, default="your-data-dir")
     parser.add_argument("--dataset_name", type=str, default="bamboogle")
     parser.add_argument("--split", type=str, default="test")
     parser.add_argument("--save_dir", type=str, default="your-save-dir")
     parser.add_argument("--save_note", type=str, default='your-save-note-for-identification')
     parser.add_argument("--sgl_remote_url", type=str, default="your-sgl-remote-url")
+    parser.add_argument("--sandbox_url", type=str, default="your-sandbox-url")
     parser.add_argument("--remote_retriever_url", type=str, default="your-remote-retriever-url")
     parser.add_argument("--generator_model", type=str, default="your-local-model-path")
-    parser.add_argument("--apply_chat", type=bool, default=True)
 
     func_dict = {
         "naive": naive,
         "zero-shot": zero_shot,
         "iterretgen": iterretgen,
         "ircot": ircot,
-        "research": research,
+        "re-call": re_call,
     }
 
     args = parser.parse_args()
@@ -113,6 +113,7 @@ if __name__ == "__main__":
         "sgl_remote_url": args.sgl_remote_url,
         "remote_retriever_url": args.remote_retriever_url,
         "generator_model": args.generator_model,
+        "sandbox_url": args.sandbox_url,
     }
 
     func = func_dict[args.method_name]

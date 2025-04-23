@@ -17,7 +17,7 @@ from verl.utils.reward_score import _default_compute_score
 import torch
 import json
 
-class ReSearchRewardManagerWithSave():
+class ReCallRewardManagerWithSave():
     """The reward manager.
     """
 
@@ -27,7 +27,7 @@ class ReSearchRewardManagerWithSave():
         self.compute_score = compute_score or _default_compute_score
         self.save_path = save_path
 
-    def __call__(self, data: DataProto, curr_save_path=None):
+    def __call__(self, data: DataProto, return_dict=False, curr_save_path=None):
         """We will expand this function gradually based on the available datasets"""
 
         if curr_save_path is not None:
@@ -106,4 +106,9 @@ class ReSearchRewardManagerWithSave():
         if save_path is not None:
             save_file.close()
 
-        return reward_tensor
+        if return_dict:
+            return {
+                "reward_tensor": reward_tensor,
+            }
+        else:
+            return reward_tensor

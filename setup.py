@@ -22,11 +22,11 @@ install_requires = [
   'pyarrow>=15.0.0',
   'pybind11',
   'pylatexenc',
-  'ray[default]==2.10',
-  'tensordict<0.6',
+  'ray[default]>=2.10',
+  'tensordict<=0.6.2',
   'torchdata',
   'transformers',
-  'vllm==0.6.3',
+  'vllm==0.8.4',
   'wandb',
 
   # flashrag
@@ -59,15 +59,15 @@ install_requires = [
 ]
 
 setup(
-    name='re-search',
+    name='re-call',
     version=__version__,
     package_dir={'': 'src'},
     packages=find_packages(where='src'),
-    url='https://github.com/Agent-RL/ReSearch',
+    url='https://github.com/Agent-RL/ReCall',
     license='MIT License',
     author='Baichuan Inc.',
     author_email='chenmingyang@baichuan-inc.com',
-    description='ReSearch: Learning to Reason with Search for LLMs via Reinforcement Learning',
+    description='ReCall: Learning to Reason with Tool Call for LLMs via Reinforcement Learning',
     install_requires=install_requires,
     package_data={'': ['**/*.yaml']},
     include_package_data=True,

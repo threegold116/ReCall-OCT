@@ -1,52 +1,71 @@
 <div align="center">
 
-# ***ReSearch***: Learning to ***Re***ason with ***Search*** for LLMs via Reinforcement Learning
+# ***ReCall***: Learning to ***Re***ason with Tool ***Call*** for LLMs via Reinforcement Learning
 
-[![Arxiv](https://img.shields.io/badge/paper-A82F27?style=for-the-badge&logo=arxiv)](https://arxiv.org/abs/2503.19470) [![Model](https://img.shields.io/badge/model-4169E1?style=for-the-badge&logo=huggingface)](https://huggingface.co/collections/agentrl/research-67e506a0311bea06dc54878b) 
+[![Notion](https://img.shields.io/badge/blog-black?style=for-the-badge&logo=notion)](https://attractive-almandine-935.notion.site/ReCall-Learning-to-Reason-with-Tool-Call-for-LLMs-via-Reinforcement-Learning-1d7aec91e9bb8006ad40f9edbfe2191a) [![Arxiv](https://img.shields.io/badge/paper-A82F27?style=for-the-badge&logo=arxiv)](https://arxiv.org/abs/2503.19470) [![Model](https://img.shields.io/badge/model-4169E1?style=for-the-badge&logo=huggingface)](https://huggingface.co/collections/agentrl/research-67e506a0311bea06dc54878b) 
 
 </div>
 
+We introduce ***ReCall***, a novel framework that trains LLMs to ***Re***ason with Tool ***Call*** via reinforcement learning—without requiring any supervised data on tool use trajectories or reasoning steps. *ReCall* empowers LLMs to agentically use and combine arbitrary tools like [OpenAI o3](https://openai.com/index/introducing-o3-and-o4-mini/), offering an accessible approach toward general-purpose agents. Additionally, we provide a novel perspective to generate synthetic data with diverse environments and complex multi-step tasks, enabling LLMs to develop sophisticated tool-based reasoning capabilities. This is a work in progress and we are actively working on it.
+
+> [!IMPORTANT]
+> *ReCall* is the successor to [*ReSearch*](https://arxiv.org/abs/2503.19470) and represents a more comprehensive framework that extends beyond the search tool to support reasoning with any user-defined tools. It can be a drop-in replacement of *ReSearch*. We've archived the original implementation of *ReSearch* in the branch `re-search`.
+
 <p align="center">
-<img src="./assets/intro_bar.png" width="90%" alt="Intro" />
-<img src="./assets/method.png" width="90%" alt="Method" />
+<img src="./assets/overview.png" width="90%" alt="Overview" />
+<img src="./assets/eval_bar.png" width="90%" alt="Eval" />
 </p>
 
-We propose ***ReSearch***, a novel framework that trains LLMs to ***Re***ason with ***Search*** via reinforcement learning without using any supervised data on reasoning steps. Our approach treats search operations as integral components of the reasoning chain, where when and how to perform searches is guided by text-based thinking, and search results subsequently influence further reasoning.
-
 ## 📰 News
-- **[2025-03-27]** 🤗 We release our trained models on [Hugging Face](https://huggingface.co/collections/agentrl/research-67e506a0311bea06dc54878b), please check it out! 
-- **[2025-03-26]** 🎉 We release the paper, update the code and open-source the models.
+- **[2025-04-24]** 🎉 We release the first version of *ReCall*, and archive the original implementation of *ReSearch*.
+  - ➡️ The name of the repository is changed from *ReSearch* to *ReCall*.
+  - 📝 We release a [blog](https://attractive-almandine-935.notion.site/ReCall-Learning-to-Reason-with-Tool-Call-for-LLMs-via-Reinforcement-Learning-1d7aec91e9bb8006ad40f9edbfe2191a) to introduce the idea of *ReCall*.
+  - 📦 Current implementation of *ReCall* is based on verl 0.3.0 + vllm 0.8.4.
+- **[2025-03-27]** 🤗 We release our trained *ReSearch* models on [Hugging Face](https://huggingface.co/collections/agentrl/research-67e506a0311bea06dc54878b), please check it out! 
+- **[2025-03-26]** 🎉 We release the paper and update the code of *ReSearch*.
   - 📝 The **paper is released** on arXiv, more details and evaluation results can be found in our [paper](https://arxiv.org/abs/2503.19470).
   - 🛠️ The **repository is updated** with the new implementation, especially the rollout with search during RL training. This version of implementation is based on the latest release of verl.
-- **[2025-03-03]** ✅ We have released the preview version of ReSearch implementation.
+- **[2025-03-03]** ✅ We have released the preview version of *ReSearch* implementation.
 
 ## 📦 Installation
 
 We recommend using conda to manage the environment. First create a conda environment and activate it.
 ```bash
-conda create -n re-search python==3.10
-conda activate re-search
+conda create -n re-call python==3.10
+conda activate re-call
 ```
-Then install dependencies, and our modified verl and flashrag packages  under ```src/``` will be installed in the editable mode.  Check out ```setup.py``` for details.
+Then install dependencies, and the packages under ```src/``` will be installed in the editable mode.  Check out ```setup.py``` for details.
 ```bash
-pip3 install torch==2.4.0 --index-url https://download.pytorch.org/whl/cu124
-pip3 install flash-attn --no-build-isolation
-git clone https://github.com/Agent-RL/ReSearch.git
-cd ReSearch
+git clone https://github.com/Agent-RL/ReCall.git
+cd ReCall
 pip3 install -e .
+pip3 install flash-attn --no-build-isolation
 ```
-As described in the [FlashRAG](https://github.com/RUC-NLPIR/FlashRAG?tab=readme-ov-file#wrench-installation), due to the incompatibility when installing faiss using pip, we need to use the following conda command to install faiss-gpu.
+If you want to host a Wikipedia RAG system based on FlashRAG, you need to install faiss-gpu as follow. As described in the [FlashRAG](https://github.com/RUC-NLPIR/FlashRAG?tab=readme-ov-file#wrench-installation), due to the incompatibility when installing faiss using pip, we need to use the following conda command to install faiss-gpu.
 ```bash
 conda install -c pytorch -c nvidia faiss-gpu=1.8.0
 ```
 
 ## 🚀 Quick Start
 
+> If you want to learn the details of current version of *ReCall*, please refer to the [blog](https://attractive-almandine-935.notion.site/ReCall-Learning-to-Reason-with-Tool-Call-for-LLMs-via-Reinforcement-Learning-1d7aec91e9bb8006ad40f9edbfe2191a) first.
+
+### Data Preparation
+
+*ReCall* is trained on a mixture of our synthetic dataset `SynTool` and the training set of `MuSiQue`. You can download the preprocessed training data from [here](https://huggingface.co/datasets/agentrl/ReCall-data), and use such data directly for training.
+
+### Sandbox Serving
+
+Since tools are implemented in executable Python code, the tool executor is responsible for running the Python code. To ensure safety and security, we implement a sandbox for running Python code on a remote server. To launch the sandbox service, run the following command:
+```bash
+cd scripts/serving
+python sandbox.py --port {port}
+```
+Note: The current implementation is a basic sandbox environment. We plan to use a more robust and secure sandbox in future updates. We recommend hosting the sandbox on a remote server, as local hosting may expose your machine to potential security risks.
+
 ### Retriever Serving
 
-As described in our paper, during model training and evaluation, search operation will be conducted in the rollout and inference process. In practice, we host a retriever service via FlashRAG and FastAPI. Hence, the search operation is standardized to be an API call. This serving can be used to decouple the search operation from the reinforcement learning process, making the training and evaluation more clear and flexible.
-
-Before starting the retriever serving, you need download the [pre-indexed wikipedia](https://github.com/RUC-NLPIR/FlashRAG?tab=readme-ov-file#index), [wikipedia corpus and corresponding retriever models](https://github.com/RUC-NLPIR/FlashRAG/blob/main/docs/original_docs/reproduce_experiment.md#preliminary). More details can be found in the documentation of FlashRAG.
+For training on MuSiQue data with a Wikipedia search tool, we provide a Wikipedia retriever service implemented using FlashRAG and FastAPI. Before starting the retriever serving, you need download the [pre-indexed wikipedia](https://github.com/RUC-NLPIR/FlashRAG?tab=readme-ov-file#index), [wikipedia corpus and corresponding retriever models](https://github.com/RUC-NLPIR/FlashRAG/blob/main/docs/original_docs/reproduce_experiment.md#preliminary). More details can be found in the documentation of FlashRAG.
 
 For starting the retriever serving, you need to first fill the `scripts/serving/retriever_config.yaml` with the correct path to the retrieval model, index, and corpus, and available GPU ids. Then, you can run the following command to start the retriever serving:
 ```bash
@@ -55,22 +74,6 @@ python retriever_serving.py \
     --config retriever_config.yaml \
     --num_retriever {num_retriever} \  
     --port {port}
-```
-
-The started retriever serving will be used in the training and evaluation process in the following part.
-
-### Data Preparation
-
-*ReSearch* is trained on the training set of MuSiQue, and evaluated on the dev set of HotpotQA, 2WikiMultiHopQA, MuSiQue and Bamboogle. For downloading the datasets, please refer to the `data/download_dataset.sh` script.
-```bash
-cd data
-bash download_dataset.sh
-```
-
-For preparing the training and validation data for following reinforcement learning, please run this script to parse the MuSiQue dataset to the parquet format.
-```bash
-cd data
-python prepare_musique.py
 ```
 
 ### Training
@@ -83,11 +86,12 @@ Here is an example of training Qwen2.5-7B-Instruct with 4 GPUs locally. Note tha
 cd scripts/train
 bash train.sh \
     --train_batch_size 8 \
-    --ppo_mini_batch_size 8 \
-    --apply_chat True \
-    --prompt_template_name re_search_template_sys \
+    --ppo_mini_batch_size 4 \
+    --use_re_call True \
+    --prompt_template_name re_call_template_sys \
     --actor_model_path {model/path/to/qwen2.5-7b-instruct} \
     --search_url {your-hosted-retriever-url} \
+    --sandbox_url {your-hosted-sandbox-url} \
     --project_name {wandb-project-name} \
     --experiment_name {wandb-experiment-name} \
     --nnodes 1 \
@@ -97,19 +101,18 @@ bash train.sh \
     --total_epochs 2 \
     --wandb_api_key {your-wandb-api-key} \
     --save_path {path/to/save} \
-    --train_files {path/to/train/parquet/data} \
-    --test_files {path/to/test/parquet/data}
+    --train_files "['train1.parquet', 'train2.parquet']" \
+    --test_files "['test1.parquet', 'test2.parquet']"
 ```
-- For training base (pre-trained) models, please use `--apply_chat False` and `--prompt_template_name re_search_template`
-- For training instruction-tuned models, please use `--apply_chat True` and `--prompt_template_name re_search_template_sys`
 
 #### Multi-node training
 
-If you want to **fully reproduce** the results in our paper, please refer to the multi-node training script in `scripts/train/train_multi_node.sh`, as well as the implementation details in our paper.
+If you want to **fully reproduce** *ReCall*, please refer to the multi-node training script in `scripts/train/train_multi_node.sh`.
 
-### Evaluation
-
-We recommend using [SGLang](https://docs.sglang.ai/) to serve the trained model. You can download our open-sourced models or trained your own models to conduct the evaluation. Here is an example of launching the model serving:
+### Inference
+This section demonstrates how to perform inference using the trained *ReCall* model. We provide a standard wrapper class in `src/re_call/inference/re_call.py` that simplifies the inference process. To get started, you only need to provide the model URL and sandbox URL, then use the `run` function to execute inference. The `ReCall` class handles all the orchestration between model generation and tool execution internally. For a practical example of using the `ReCall` class, please refer to our sample implementation at `scripts/inference/re_call_use_case.py`.
+ 
+For model serving, we recommend using [SGLang](https://docs.sglang.ai/). You can either download our open-source models or train your own models to conduct the inference. Here is an example of how to launch the model service:
 ```bash
 python3 -m sglang.launch_server \
         --served-model-name {trained/model/name} \
@@ -125,28 +128,39 @@ python3 -m sglang.launch_server \
         --disable-radix-cache
 ```
 
-We use [FlashRAG](https://github.com/RUC-NLPIR/FlashRAG) as the standard evaluation environment. Here is an example of evaluating the performance of ReSearch-Qwen-7B-Instruct on Bamboogle test set.
+### Evaluation
+
+#### Multi-hop QA
+
+For the evaluation on multi-hop QA, we use [FlashRAG](https://github.com/RUC-NLPIR/FlashRAG) as the standard evaluation environment. For downloading the evaluation data, please run the following command:
+```bash
+cd data
+bash download_dataset.sh
+```
+Here is an example of evaluating the performance of ReCall-Qwen-7B-Instruct on Bamboogle test set.
 ```bash
 cd scripts/evaluation
 python run_eval.py \
     --config_path eval_config.yaml \
-    --method_name research \
+    --method_name re-call \
     --data_dir {root/path/to/evaluation/data} \
     --dataset_name bamboogle \
     --split test \
     --save_dir {your-save-dir} \
-    --save_note research_qwen7b_ins
+    --save_note re-call_qwen7b_ins
     --sgl_remote_url {your-launched-sgl-url} \
     --remote_retriever_url {your-hosted-retriever-url} \
     --generator_model {your-local-model-path} \
-    --apply_chat True
+    --sandbox_url {your-hosted-sandbox-url}
 ```
+For more details about the configuration, please refer to the `scripts/evaluation/eval_config.yaml` file. 
 
-For base model, please use `--apply_chat False` and for instruction-tuned model, please use `--apply_chat True`, for loading correct prompt template when conducting evaluation for *ReSearch* model. For more details about the configuration, please refer to the `scripts/evaluation/eval_config.yaml` file. 
+#### BFCL
+We will release the evaluation code on BFCL soon.
 
 ## 🤝 Acknowledge
 
-This training implementation is based on [verl](https://github.com/volcengine/verl) and the evaluation is based on [FlashRAG](https://github.com/RUC-NLPIR/FlashRAG). The serving of retriever is based on [FastAPI](https://github.com/fastapi/fastapi). The model serving is based on [SGLang](https://docs.sglang.ai/). *ReSearch* models are trained based on [Qwen2.5](https://qwenlm.github.io/blog/qwen2.5/). We sincerely appreciate their contributions to the open-source community.
+This training implementation is based on [verl](https://github.com/volcengine/verl) and the evaluation is based on [FlashRAG](https://github.com/RUC-NLPIR/FlashRAG) and BFCL. The serving of sandbox and retriever is based on [FastAPI](https://github.com/fastapi/fastapi). The model serving is based on [SGLang](https://docs.sglang.ai/). *ReCall* models are trained based on [Qwen2.5](https://qwenlm.github.io/blog/qwen2.5/). We sincerely appreciate their contributions to the open-source community.
 
 ## 📚 Citation
 
