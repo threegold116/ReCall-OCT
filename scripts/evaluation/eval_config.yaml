@@ -28,6 +28,7 @@ retrieval_pooling_method: ~       # set automatically if not provided
 # -------------------------------------------------Generator Settings------------------------------------------------#
 framework: sgl_remote                   # inference frame work of LLM, supporting: 'hf','vllm','fschat'
 sgl_remote_url: "your-sgl-remote-url"
+sandbox_url: "your-sandbox-url"
 generator_model: "the-model-local-path" # name or path of the generator model, for laoding tokenizer
 generator_max_input_len: 8192           # max length of the input
 generation_params:

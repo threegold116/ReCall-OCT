@@ -1,4 +1,5 @@
 import re
+import json
 from tqdm import tqdm
 from typing import List, Tuple
 import math
@@ -11,10 +12,53 @@ from flashrag.prompt import PromptTemplate
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from verl.utils.dataset.template import prompt_template_dict
-from verl.utils.reward_score.re_search import remove_boxed, last_boxed_only_string, extract_answer
+from verl.utils.reward_score.re_call import remove_boxed, last_boxed_only_string
+from re_call import ReCall
 
-class ReSearchPipeline(BasicPipeline):
-    def __init__(self, config, retriever=None, generator=None, apply_chat=False):
+wikipedia_search_env = """import requests
+
+def wikipedia_search(query: str, top_n: int = 5):
+    url = "<search-url-placeholder>/search"
+    
+    if query == '':
+        return 'invalid query'
+    
+    data = {'query': query, 'top_n': top_n}
+    response = requests.post(url, json=data)
+    retrieval_text = ''
+    for line in response.json():
+        retrieval_text += f"{line['contents']}\\n\\n"
+    retrieval_text = retrieval_text.strip()
+    
+    return retrieval_text"""
+
+wikipedia_search_schemas = [{
+        "type": "function",
+        "function": {
+            "name": "wikipedia_search",
+            "description": "Search Wikipedia for a given query.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Query to search for."
+                    },
+                    "top_n": {
+                        "type": "integer",
+                        "description": "Number of results to return. The default value is 5.",
+                        "default": 5
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    }
+]
+wikipedia_search_schemas = json.dumps(wikipedia_search_schemas, indent=4)
+
+class ReCallPipeline(BasicPipeline):
+    def __init__(self, config, retriever=None, generator=None):
         super().__init__(config)
         if retriever is None:
             retriever = get_retriever(config)
@@ -22,98 +66,53 @@ class ReSearchPipeline(BasicPipeline):
             generator = get_generator(config)
         self.retriever = retriever
         self.generator = generator
-        self.apply_chat = apply_chat
-        if apply_chat:
-            self.prompt_template = prompt_template_dict['re_search_template_sys']
-        else:
-            self.prompt_template = prompt_template_dict['re_search_template']
 
+        self.prompt_template = prompt_template_dict['re_call_template_sys']
         self.tokenizer = AutoTokenizer.from_pretrained(config["generator_model_path"])
 
-    def extract_search_content(self, text: str) -> str:
-        try:
-            start_tag = '<search>'
-            end_tag = '</search>'
-            assert text.strip().endswith(end_tag)
-            end_pos = text.rindex(end_tag)
-            start_pos = text.rindex(start_tag, 0, end_pos)
-            return text[start_pos + len(start_tag):end_pos].strip()
-        except ValueError:
+        model_url = config["sgl_remote_url"]
+        executor_url = config["sandbox_url"]
+        
+        self.re_call = ReCall(model_url, executor_url)
+        self.save_dir = config["save_dir"]
+    
+    def extract_last_assistant_response(self, text: str) -> str:
+        pattern = r'<\|im_start\|>assistant\n(.*?)<\|im_end\|>'
+        matches = re.findall(pattern, text, re.DOTALL)  # re.DOTALL allows . to match newlines
+        
+        if not matches:
             return ""
+        
+        last_response = matches[-1].strip()
+        
+        # Remove content between <think> tags
+        think_pattern = r'<think>.*?</think>'
+        cleaned_response = re.sub(think_pattern, '', last_response, flags=re.DOTALL)
+        
+        return cleaned_response.strip()
 
     def run_item(self, item):
-        if self.apply_chat:
-            query = self.tokenizer.apply_chat_template([
-                {'role': 'system', 'content': self.prompt_template},
-                {'role': 'user', 'content': item.question}
-            ], tokenize=False, add_generation_prompt=True)
+        response = self.re_call.run(env=wikipedia_search_env.replace('<search-url-placeholder>', self.config["remote_retriever_url"]), func_schemas=wikipedia_search_schemas, question=item.question)
+        item.update_output("final_response", response)
+
+        answer_part = self.extract_last_assistant_response(response)
+        if answer_part:
+            try:
+                answer = remove_boxed(last_boxed_only_string(answer_part))
+            except Exception as e:
+                answer = ''
         else:
-            query = self.prompt_template.format(prompt=item.question)
-        
-        init_query = query
+            answer = ""
+        item.update_output("pred", answer)
 
-        remain_length = self.config['generator_max_input_len']
-        over_length_flag = False
-        while remain_length > 0:
-            response = self.generator.generate(input_list=[query], return_raw_output=True, stop=['</search>'], max_new_tokens=remain_length)
-            response = response[0]
-            stop_reason = response['meta_info']['finish_reason'].get('type', '')
-            stop_matched = response['meta_info']['finish_reason'].get('matched', '')
-            
-            if stop_reason == 'stop' and isinstance(stop_matched, str) and '</search>' in stop_matched:
-                output_str = response['text'] + '</search>'
-                search_content = self.extract_search_content(output_str)
-                if search_content != '':
-                    search_result = self.retriever.search(search_content)
-                
-                    retrieval_text = ''
-                    for line in search_result:
-                        retrieval_text += f"{line['contents']}\n\n"
-                    retrieval_text = retrieval_text.strip()
-                else:
-                    retrieval_text = 'nothing to search'
-
-                query += f"{output_str} <result>\n{retrieval_text}\n</result>"
-            elif stop_reason == 'stop' and (stop_matched == 151643 or stop_matched == 151645):
-                output_str = response['text']
-                query += f"{output_str}"
-                break
-            elif stop_reason == 'length':
-                output_str = response['text']
-                over_length_flag = True
-                query += f"{output_str}"
-                break
-            else:
-                raise ValueError(f"stop_reason: {stop_reason}, stop_matched: {stop_matched}")
-                
-            remain_length = self.config['generator_max_input_len'] - (response['meta_info']['prompt_tokens'] + response['meta_info']['completion_tokens'])
-        
-        final_response = query.replace(init_query, "")
-        item.update_output("final_response", final_response)
-
-        if over_length_flag:
-            item.update_output("pred", "")
-        else:
-            answer_part = extract_answer(final_response)
-            if answer_part is not None:
-                try:
-                    answer = remove_boxed(last_boxed_only_string(answer_part))
-                except Exception as e:
-                    answer = ''
-            else:
-                answer = ""
-            item.update_output("pred", answer)
-
-        
     def run(self, dataset, do_eval=True, pred_process_fun=None):
-        with ThreadPoolExecutor(max_workers=100) as executor:
+        with ThreadPoolExecutor(max_workers=30) as executor:
             futures = [executor.submit(self.run_item, item) for item in dataset]
             for future in tqdm(as_completed(futures), total=len(futures), desc="Inference: "):
                 future.result()
         
         dataset = self.evaluate(dataset, do_eval=do_eval, pred_process_fun=pred_process_fun)
         return dataset
-
 
 class IterativePipeline(BasicPipeline):
     def __init__(self, config, prompt_template=None, iter_num=3, retriever=None, generator=None):

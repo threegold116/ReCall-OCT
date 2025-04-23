@@ -1,59 +1,7 @@
 import re
-import sys
 import string
 from typing import Union, List
 from collections import Counter
-
-def validate_format(text: str) -> tuple[bool, str]:
-    # check if <think></think>, <answer></answer> is paired
-    if text.count('<think>') != text.count('</think>'):
-        return False, "<think> </think> not paired"
-    
-    if text.count('<think>') == 0 or text.count('</think>') == 0:
-        return False, "<think> or </think> not found"
-    
-    if text.count('<answer>') != 1 or text.count('</answer>') != 1:
-        return False, "<answer> or </answer> not found"        
-    
-    # check the order of search/result
-    current_pos = 0
-    while True:
-        search_pos = text.find('<search>', current_pos)
-        if search_pos == -1:
-            break
-            
-        result_pos = text.find('<result>', search_pos)
-        search_end_pos = text.find('</search>', search_pos)
-        result_end_pos = text.find('</result>', result_pos)
-        
-        if -1 in (result_pos, search_end_pos, result_end_pos):
-            return False, "search/result tags are incomplete"
-            
-        if not (search_pos < search_end_pos < result_pos < result_end_pos):
-            return False, "search/result tags are nested in the wrong order"
-            
-        current_pos = result_end_pos
-    
-    # check if \boxed{} is in the answer
-    answer_start = text.find('<answer>')
-    answer_end = text.find('</answer>')
-    if answer_start > answer_end:
-        return False, "<answer> must be before </answer>"
-    answer_content = text[answer_start:answer_end]
-    if '\\boxed{' not in answer_content or '}' not in answer_content:
-        return False, "answer is missing \\boxed{} format"
-    
-    return True, "format is correct"
-
-def extract_answer(text: str):
-    text = text.strip()
-
-    pattern = r"<answer>(.*?)</answer>"
-    match = re.search(pattern, text, re.DOTALL)
-    if not match:
-        return None
-    
-    return match.group(1)
 
 def remove_boxed(s):
     if "\\boxed " in s:
@@ -146,31 +94,87 @@ def get_f1_score(prediction: str, ground_truths: Union[str, List[str]]):
     
     return final_metric['f1']
 
-def compute_score(tokenizer, solution_str, ground_truth) -> float:
-    # handling both the base model and the instruction-tuned model
-    if "<|im_start|>assistant\n" in solution_str:
-        solution_str_split = solution_str.split("<|im_start|>assistant\n")
-    else:
-        solution_str_split = solution_str.split("Assistant:")
+def validate_template_format(text: str) -> tuple[bool, str]:
+    """
+    validate the template format
+    return: (is valid, error message)
+    """
+    # extract all assistant responses
+    assistant_responses = []
+    current_pos = 0
+    while True:
+        start_pos = text.find("<|im_start|>assistant\n", current_pos)
+        if start_pos == -1:
+            break
+        end_pos = text.find("<|im_end|>", start_pos)
+        if end_pos == -1:
+            break
+        response = text[start_pos + len("<|im_start|>assistant\n"):end_pos].strip()
+        assistant_responses.append(response)
+        current_pos = end_pos + len("<|im_end|>")
+
+    if not assistant_responses:
+        return False, "no assistant response found"
+
+    for response in assistant_responses:
+        # 1. check <think> and </think> pair
+        think_count = response.count("<think>")
+        think_end_count = response.count("</think>")
+        if think_count != think_end_count:
+            return False, f"<think> and </think> are not paired: think={think_count}, think_end={think_end_count}"
+        if think_count == 0:
+            return False, "missing <think> tag"
+
+        # 2. check <tool_call> and </tool_call> pair
+        tool_call_count = response.count("<tool_call>")
+        tool_call_end_count = response.count("</tool_call>")
+        if tool_call_count != tool_call_end_count:
+            return False, f"<tool_call> and </tool_call> are not paired: tool_call={tool_call_count}, tool_call_end={tool_call_end_count}"
+
+        # 3. check the content of each tool_call can be parsed as json
+        current_pos = 0
+        while True:
+            tool_call_start = response.find("<tool_call>", current_pos)
+            if tool_call_start == -1:
+                break
+            tool_call_end = response.find("</tool_call>", tool_call_start)
+            if tool_call_end == -1:
+                break
+            
+            tool_call_content = response[tool_call_start + len("<tool_call>"):tool_call_end].strip()
+            
+            # check if it contains name and arguments
+            if '"name"' not in tool_call_content or '"arguments"' not in tool_call_content:
+                return False, "tool_call is missing name or arguments field"
+            
+            try:
+                import json
+                json.loads(tool_call_content)
+            except json.JSONDecodeError:
+                return False, f"tool_call is not a valid json: {tool_call_content}"
+            
+            current_pos = tool_call_end + len("</tool_call>")
+
+    # 4. check if the last response contains \\boxed
+    if "\\box" not in assistant_responses[-1]:
+        return False, "the last response is missing \\boxed"
+
+    return True, assistant_responses[-1]
+
+def compute_score_with_format(tokenizer, solution_str, ground_truth) -> tuple[float, str]:
+    if not solution_str.endswith(tokenizer.eos_token):
+        return 0, f'not end with eos token'
     
-    response = solution_str_split[1]
-    valid_template, reason = validate_format(response)
+    valid_template, reason = validate_template_format(solution_str)
     if not valid_template:
         return 0, f'bad format: {reason}'
-
-    if response.endswith(tokenizer.eos_token):
-        response = response[:-len(tokenizer.eos_token)]
     else:
-        return 0, f'over length'
+        response = reason
 
-    answer_part = extract_answer(response)
-    if answer_part is not None:
-        try:
-            answer = remove_boxed(last_boxed_only_string(answer_part))
-        except Exception as e:
-            return 0, f'find box error: {e}'
-    else:
-        return 0, f'cannot extract answer'
+    try:
+        answer = remove_boxed(last_boxed_only_string(response))
+    except Exception as e:
+        return 0, f'find box error: {e}'
 
     f1_score = get_f1_score(answer, ground_truth)
     if f1_score > 0:
