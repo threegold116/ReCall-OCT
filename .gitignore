@@ -22,3 +22,9 @@ var/
 
 # Mac
 .DS_Store
+
+notebooks/
+output/
+pyproject.toml
+uv.lock
+.env

@@ -52,7 +52,7 @@ conda install -c pytorch -c nvidia faiss-gpu=1.8.0
 
 ### Data Preparation
 
-*ReCall* is trained on a mixture of our synthetic dataset `SynTool` and the training set of `MuSiQue`. You can download the preprocessed training data from [here](https://huggingface.co/datasets/agentrl/ReCall-data), and use such data directly for training.
+*ReCall* is trained on a mixture of our synthetic dataset `SynTool` and the training set of `MuSiQue`. You can download the preprocessed training data from [here](https://huggingface.co/datasets/agentrl/ReCall-data), and use such data directly for training. For preparing your own data with specific tools, you can refer to the `data/prepare_musique_recall.py`, where we provide the script of preparing the data for MuSiQue with Wikipedia search tool.
 
 ### Sandbox Serving
 
