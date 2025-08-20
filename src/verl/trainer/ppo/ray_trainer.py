@@ -230,6 +230,31 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
         raise NotImplementedError
     return data
 
+#THREEGOLDCHANGE:计算oct奖励
+def apply_oct_penalty(data: DataProto, oct_ctrl: core_algos.OctController, oct_penalty='oct',no_positive_penalty=True):
+    token_level_scores = data.batch['token_level_scores']
+    # compute the oct reward cofficent
+    if oct_penalty == 'times':
+        old,avg_call_times,max_calling_times = core_algos.oct_times_penalty(data,oct_smooth=oct_ctrl.smooth)  # (batch_size, response_length)
+        print(f"old: {old}")
+        oct_token_level_scores = token_level_scores * old.unsqueeze(-1) *oct_ctrl.cofficient #(bz,response_length)*(bz,1) for last-token score
+        metrics = {'rollout/avg_call_times': avg_call_times,"actor/oct_coff":oct_ctrl.cofficient,"actor/smooth":oct_ctrl.smooth,"actor/oct":torch.mean(oct_token_level_scores).item(),"rollout/max_calling_times":max_calling_times}
+    elif oct_penalty == 'budget':
+        old,avg_call_costs,max_calling_times = core_algos.oct_budget_penalty(data,oct_smooth=oct_ctrl.smooth)  # (batch_size, response_length)
+        print(f"old: {old}")
+        if no_positive_penalty:
+            oct_token_level_scores = token_level_scores * old.unsqueeze(-1) *oct_ctrl.cofficient #(bz,response_length)*(bz,1) for last-token score
+        else:#TODO:oct_ctrl.coffoicient如果不为1，对结果的影响
+            for idx, old in enumerate(old):
+                if torch.sum(token_level_scores)> 0:
+                    oct_token_level_scores = token_level_scores + old.unsqueeze(-1) *oct_ctrl.cofficient #(bz,response_length)*(bz,1) for last-token score
+                
+        metrics = {'rollout/avg_call_costs': avg_call_costs,"actor/oct_coff":oct_ctrl.cofficient,"actor/smooth":oct_ctrl.smooth,"actor/oct":torch.mean(oct_token_level_scores).item(),"rollout/max_calling_times":max_calling_times}
+    else:
+        raise NotImplementedError
+    data.batch['token_level_scores'] = oct_token_level_scores
+    return data, metrics
+#THREEGOLDCHANGE
 
 @contextmanager
 def _timer(name: str, timing_raw: Dict[str, float]):
@@ -291,6 +316,12 @@ class RayPPOTrainer(object):
         else:
             raise NotImplementedError
 
+        #THREEGOLDCHANGE
+        if self.config.actor_rollout_ref.actor.use_oct_cofficient:
+            self.oct_ctrl = core_algos.OctController(init_cofficient=config.actor_rollout_ref.actor.oct_coef,
+                                                    init_smooth=config.actor_rollout_ref.actor.oct_smooth,
+                                                    tokenizer=self.tokenizer)
+        #THREEGOLDCHANGE
         self._validate_config()
         self._create_dataloader()
 
@@ -845,10 +876,18 @@ class RayPPOTrainer(object):
                         non_tensor_batch_keys=['raw_prompt_ids', 'multi_modal_data', 'multi_modal_inputs'],
                     )
                 elif 'env' in batch.non_tensor_batch.keys():
-                    gen_batch = batch.pop(
-                        batch_keys=['input_ids', 'attention_mask', 'position_ids'],
-                        non_tensor_batch_keys=['raw_prompt_ids', 'env'],
-                    )
+                    if 'cost_dict' in batch.non_tensor_batch.keys():#THREEGOLDCHANGE
+                        gen_batch = batch.pop(
+                            batch_keys=['input_ids', 'attention_mask', 'position_ids'],
+                            non_tensor_batch_keys=['raw_prompt_ids', 'env', 'cost_dict'],
+                        )#THREEGOLDCHANGE
+                        if gen_batch.non_tensor_batch["cost_dict"] is {}:
+                            pass
+                    else:
+                        gen_batch = batch.pop(
+                                batch_keys=['input_ids', 'attention_mask', 'position_ids'],
+                                non_tensor_batch_keys=['raw_prompt_ids', 'env'], #有gather和分发操作，没办法用function_name_calling传递（不统一
+                        )
                 else:
                     gen_batch = batch.pop(
                         batch_keys=['input_ids', 'attention_mask', 'position_ids'],
@@ -861,7 +900,8 @@ class RayPPOTrainer(object):
                     # generate a batch
                     with _timer('gen', timing_raw):
                         gen_batch_output = self.actor_rollout_wg.generate_sequences(gen_batch)
-
+                    if "1" in os.environ.get("RAY_DEBUG_MODE","0"):#THREEGOLDCHANGE
+                        breakpoint()
                     if self.config.algorithm.adv_estimator == AdvantageEstimator.REMAX:
                         with _timer('gen_max', timing_raw):
                             gen_baseline_batch = deepcopy(gen_batch)
@@ -880,6 +920,10 @@ class RayPPOTrainer(object):
 
                     batch.non_tensor_batch['uid'] = np.array([str(uuid.uuid4()) for _ in range(len(batch.batch))],
                                                              dtype=object)
+                    #THREEGOLDCHANGE:增加对calling_ocst的统计
+                    if "cost_dict" in gen_batch.non_tensor_batch:
+                        batch.non_tensor_batch["cost_dict"] = gen_batch.non_tensor_batch["cost_dict"]
+                    #THREEGOLDCHANGE
                     # repeat to align with repeated responses in rollout
                     batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
                     batch = batch.union(gen_batch_output)
@@ -926,7 +970,7 @@ class RayPPOTrainer(object):
                             # reward_result = self.reward_fn(batch, return_dict=True)
                             reward_result = self.reward_fn(batch, return_dict=True, curr_save_path=os.path.join(self.config.trainer.rollout_save_path, f'train_{self.global_steps}.jsonl'))
                             reward_tensor = reward_result['reward_tensor']
-                            reward_extra_infos_dict = reward_result['reward_extra_info']
+                            reward_extra_infos_dict = reward_result.get("reward_extra_info",{}) #THREEGOLDCHANGE
                         except Exception as e:
                             print(f'Error in reward_fn: {e}')
                             reward_tensor = self.reward_fn(batch)
@@ -938,6 +982,18 @@ class RayPPOTrainer(object):
                         if reward_extra_infos_dict:
                             batch.non_tensor_batch.update({k: np.array(v) for k, v in reward_extra_infos_dict.items()})
 
+                        if "1" in os.environ.get("RAY_DEBUG_MODE","0"):
+                            breakpoint()
+                        # THREEGOLDCHANGE: 计算oct折扣因子
+                        # apply oct_penalty if availale:
+                        if self.config.actor_rollout_ref.actor.use_oct_cofficient:
+                            batch, oct_metrics = apply_oct_penalty(batch,
+                                                                 oct_ctrl=self.oct_ctrl,
+                                                                 oct_penalty=self.config.algorithm.oct_penalty)
+                            metrics.update(oct_metrics) #TODO: 增加对calling_times的logging
+                        else:
+                            batch.batch['token_level_scores'] = batch.batch['token_level_scores']
+                        # THREEGOLDCHANGE
                         # compute rewards. apply_kl_penalty if available
                         if self.config.algorithm.use_kl_in_reward:
                             batch, kl_metrics = apply_kl_penalty(batch,
@@ -968,7 +1024,8 @@ class RayPPOTrainer(object):
                             actor_output = self.actor_rollout_wg.update_actor(batch)
                         actor_output_metrics = reduce_metrics(actor_output.meta_info['metrics'])
                         metrics.update(actor_output_metrics)
-
+                    if "-1" in os.environ.get("RAY_DEBUG_MODE","0"):
+                        breakpoint()
                     # validate
                     if self.val_reward_fn is not None and self.config.trainer.test_freq > 0 and \
                         (is_last_step or  self.global_steps % self.config.trainer.test_freq == 0):
@@ -1000,3 +1057,8 @@ class RayPPOTrainer(object):
 
                 progress_bar.update(1)
                 self.global_steps += 1
+                
+                # THREEGOLDCHANGE: Print timing_raw
+                print(f"step {self.global_steps} timing_raw:")
+                for key,value in timing_raw.items():
+                    print(f'{key}: {value}')

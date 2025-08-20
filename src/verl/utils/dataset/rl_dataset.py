@@ -27,7 +27,7 @@ from omegaconf import ListConfig, DictConfig
 from verl.utils.model import compute_position_id_with_mask
 import verl.utils.torch_functional as verl_F
 from verl.utils.dataset.template import prompt_template_dict
-
+import random
 
 def collate_fn(data_list: list[dict]) -> dict:
     tensors = defaultdict(list)
@@ -127,7 +127,37 @@ class RLHFDataset(Dataset):
                 {'role': 'system', 'content': prompt_template.format(func_schemas=func_schemas)}, 
                 {'role': 'user', 'content': user_input}
             ], add_generation_prompt=True, tokenize=False) + "<think>"
-    
+    #THREEGOLDCHANGE:增加budget
+    def _pack_re_call_budget_input(self, prompt_template, func_schemas, user_input):
+        cost_sentence_template = "{function_name}: {cost}"
+        func_schemas_list = eval(func_schemas.replace("null","None").replace("true","True").replace("false","False"))
+        cost_dict = {}
+        cost_sentences = []
+        for idx in range(len(func_schemas_list)):
+            cost = random.randint(1, 10)
+            try:
+                function_name = func_schemas_list[idx]['function']['name']
+            except:
+                function_name = func_schemas_list[idx]['name']
+            cost_dict[function_name] = cost
+            cost_sentences.append(cost_sentence_template.format(function_name=function_name, cost=cost))
+        cost_sentence = "\n".join(cost_sentences)
+        if cost_dict == {}:
+            cost_dict = None
+            pass
+        # cost_sentence = cost_sentence_template.format(function_name=func_schemas_list[0]['function']['name'], cost=cost)
+        # for idx in range(1,len(func_schemas_list)-1):
+        #     cost_sentence += ", "
+        #     cost = random.randint(1, 10)
+        #     cost_sentence += cost_sentence_template.format(function_name=func_schemas_list[idx]['function']['name'], cost=cost)
+        # if len(func_schemas_list)>1:
+        #     cost = random.randint(1, 10)
+        #     cost_sentence +=" and " + cost_sentence_template.format(function_name=func_schemas_list[-1]['function']['name'], cost=cost)
+        return self.tokenizer.apply_chat_template([
+                {'role': 'system', 'content': prompt_template.format(func_schemas=func_schemas,cost_sentence=cost_sentence)}, 
+                {'role': 'user', 'content': user_input}
+            ], add_generation_prompt=True, tokenize=False) + "<think>",cost_dict
+    #THREEGOLDCHANGE:增加budget
     def _read_files_and_tokenize(self):
         dataframes = []
         for parquet_file in self.data_files:
@@ -143,11 +173,18 @@ class RLHFDataset(Dataset):
             tokenizer = self.tokenizer
             prompt_key = self.prompt_key
             if self.use_re_call:
-                self.dataframe = self.dataframe.filter(
-                    lambda doc: len(tokenizer.encode(self._pack_re_call_input(self.prompt_template, doc['extra_info']['func_schemas'], doc[prompt_key]))
-                                ) <= self.max_prompt_length,
-                    num_proc=self.num_workers,
-                    desc=f"Filtering prompts longer than {self.max_prompt_length} tokens")
+                if self.prompt_template_name == 're_call_template_sys':
+                    self.dataframe = self.dataframe.filter(
+                        lambda doc: len(tokenizer.encode(self._pack_re_call_input(self.prompt_template, doc['extra_info']['func_schemas'], doc[prompt_key]))
+                                    ) <= self.max_prompt_length,
+                        num_proc=self.num_workers,
+                        desc=f"Filtering prompts longer than {self.max_prompt_length} tokens")
+                elif self.prompt_template_name == 're_call_template_budget_sys':
+                    self.dataframe = self.dataframe.filter(
+                        lambda doc: len(tokenizer.encode(self._pack_re_call_budget_input(self.prompt_template, doc['extra_info']['func_schemas'], doc[prompt_key])[0])
+                                    ) <= self.max_prompt_length,
+                        num_proc=self.num_workers,
+                        desc=f"Filtering prompts longer than {self.max_prompt_length} tokens")
             else:
                 self.dataframe = self.dataframe.filter(
                     lambda doc: len(tokenizer.apply_chat_template(doc[prompt_key], add_generation_prompt=True)
@@ -176,9 +213,14 @@ class RLHFDataset(Dataset):
         row_dict: dict = self.dataframe[item]
 
         chat = row_dict.pop(self.prompt_key)
-
+        # THREEGOLDCHANGE:增加budget
+        cost_dict = None
+        # THREEGOLDCHANGE
         if self.use_re_call:
-            prompt_with_chat_template = self._pack_re_call_input(self.prompt_template, row_dict['extra_info']['func_schemas'], chat)
+            if self.prompt_template_name == 're_call_template_sys':
+                prompt_with_chat_template = self._pack_re_call_input(self.prompt_template, row_dict['extra_info']['func_schemas'], chat)
+            elif self.prompt_template_name == 're_call_template_budget_sys':
+                prompt_with_chat_template,cost_dict = self._pack_re_call_budget_input(self.prompt_template, row_dict['extra_info']['func_schemas'], chat)
         else:
             prompt_with_chat_template = self.tokenizer.apply_chat_template(chat, add_generation_prompt=True, tokenize=False)
 
@@ -250,6 +292,10 @@ class RLHFDataset(Dataset):
                 row_dict['env'] = row_dict['extra_info']['env'].replace('<search-url-placeholder>', self.config.get('search_url', ''))
             else:
                 row_dict['env'] = row_dict['extra_info']['env']
+            if cost_dict is not None:
+                row_dict["cost_dict"] = cost_dict
+                # for function_name,cost in cost_dict.items():
+                #     [f"{function_name}_cost"] = cost
 
         return row_dict
 

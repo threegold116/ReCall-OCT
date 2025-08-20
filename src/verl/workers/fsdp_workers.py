@@ -500,7 +500,8 @@ class ActorRolloutRefWorker(Worker):
     def generate_sequences(self, prompts: DataProto):
         # Support all hardwares
         prompts = prompts.to(torch.cuda.current_device())
-
+        if '2' in os.environ.get('RAY_DEBUG_MODE', '0') and self.rank == 0:
+            breakpoint()
         assert self._is_rollout
         if self._is_offload_param:
             load_fsdp_model_to_gpu(self.actor_module_fsdp)

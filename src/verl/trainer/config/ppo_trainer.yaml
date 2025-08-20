@@ -47,6 +47,12 @@ actor_rollout_ref:
     loss_agg_mode: "token-mean" # / "seq-mean-token-sum" / "seq-mean-token-mean"
     entropy_coeff: 0.001
     use_kl_loss: False # True for GRPO
+    #THREEGOLDCHANGE
+    use_oct_cofficient: False # True for OCT
+    oct_coef: 1 # for OCT(alpha)
+    oct_smooth: ${actor_rollout_ref.rollout.max_turns} # same with max_calling_times
+    no_positive_penalty: True 
+    #THREEGOLDCHANGE
     use_torch_compile: True # False to disable torch compile
     kl_loss_coef: 0.001 # for grpo
     kl_loss_type: low_var_kl # for grpo
@@ -181,6 +187,9 @@ reward_model:
   use_dynamic_bsz: ${critic.use_dynamic_bsz}
   forward_max_token_len_per_gpu: ${critic.forward_max_token_len_per_gpu}
   reward_manager: naive
+  #THREEGOLDCHANGE
+  reward_rule: f1
+  #THREEGOLDCHANGE
 
 custom_reward_function:
   path: null
@@ -191,6 +200,9 @@ algorithm:
   lam: 1.0
   adv_estimator: gae
   use_kl_in_reward: False
+  #THREEGOLDCHANGE
+  oct_penalty: times  # how to estimate oct divergence
+  #THREEGOLDCHANGE
   kl_penalty: kl  # how to estimate kl divergence
   kl_ctrl:
     type: fixed

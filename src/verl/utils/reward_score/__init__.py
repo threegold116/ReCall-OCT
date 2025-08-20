@@ -14,7 +14,7 @@
 # from . import gsm8k, math, prime_math, prime_code
 
 
-def _default_compute_score(data_source, tokenizer, solution_str, ground_truth, extra_info=None):
+def _default_compute_score(data_source, tokenizer, solution_str, ground_truth, extra_info=None,reward_rule="f1"):
     if data_source == 'openai/gsm8k':
         from . import gsm8k
         res = gsm8k.compute_score(solution_str, ground_truth)
@@ -45,7 +45,9 @@ def _default_compute_score(data_source, tokenizer, solution_str, ground_truth, e
         res = geo3k.compute_score(solution_str, ground_truth)
     elif 're_call' in data_source:
         from . import re_call
-        res = re_call.compute_score_with_format(tokenizer, solution_str, ground_truth)
+        res = re_call.compute_score_with_format(tokenizer, solution_str, ground_truth) #TODO:add 0/1 reward
+        if reward_rule == "binary":
+            res = re_call.compute_binary_score_with_format(tokenizer, solution_str, ground_truth)
     else:
         raise NotImplementedError(f"Reward function is not implemented for {data_source=}")
 

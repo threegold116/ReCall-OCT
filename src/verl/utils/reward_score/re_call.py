@@ -181,3 +181,40 @@ def compute_score_with_format(tokenizer, solution_str, ground_truth) -> tuple[fl
         return f1_score, f'correct answer, get f1 score: {f1_score}'
     else:
         return 0.1, f'wrong answer but good format: {answer}'
+
+
+#THREEGOLDCHANGE
+from .re_search import em_check
+from .re_search_math import is_equiv
+def get_binary_score(answer,ground_truths):
+    if isinstance(ground_truths, str):
+        ground_truths = [ground_truths]
+    for ground_truth in ground_truths:
+        if is_equiv(answer, ground_truth) or em_check(answer, ground_truth):
+            return 1.0
+    return 0
+    
+#THREEGOLDCHANGE
+
+#THREEGOLDCHANGE
+def compute_binary_score_with_format(tokenizer, solution_str, ground_truth) -> tuple[float, str]:
+    if not solution_str.endswith(tokenizer.eos_token):
+        return -1, f'not end with eos token'
+    
+    valid_template, reason = validate_template_format(solution_str)
+    if not valid_template:
+        return -1, f'bad format: {reason}'
+    else:
+        response = reason
+
+    try:
+        answer = remove_boxed(last_boxed_only_string(response))
+    except Exception as e:
+        return -1, f'find box error: {e}'
+
+    binary_score = get_binary_score(answer, ground_truth)
+    if binary_score > 0:
+        return binary_score, f'correct answer, get binary score: {binary_score}'
+    else:
+        return 0, f'wrong answer in binary but good format: {answer}'
+#THREEGOLDCHANGE

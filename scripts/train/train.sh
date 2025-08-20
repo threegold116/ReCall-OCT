@@ -10,8 +10,8 @@ ACTOR_MODEL_PATH=/your/model/path
 ROLLOUT_NAME=vllm_with_tool
 REWARD_MANAGER=re_call
 ROLLOUT_N=5
-ROLLOUT_TP=2
-ROLLOUT_GPU_UTIL=0.8
+ROLLOUT_TP=1
+ROLLOUT_GPU_UTIL=0.7
 MAX_TURNS=5
 SEARCH_URL=/your/search/url
 SANDBOX_URL=/your/sandbox/url
@@ -22,11 +22,25 @@ N_GPUS_PER_NODE=8
 SAVE_FREQ=10
 TEST_FREQ=10
 TOTAL_EPOCHS=2
-WANDB_API_KEY=your-wandb-api-key
+WANDB_API_KEY=None
 SAVE_PATH=/your/save/path
 TRAIN_FILES=/your/train/file/path/or/list
 TEST_FILES=/your/test/file/path/or/list
-
+APPLY_CHAT=True
+SEARCH_MODE=wikipedia
+MAX_CALLING_TIMES=3
+TOP_N=3
+MIX_RULES=True
+QA_RULE=em_score
+IS_MULTI_TOOL=False
+KL_LOSS_COEF=0.001
+OCT_PENALTY=times
+VAL_BEFORE_TRAIN=False
+PROGRESSIVE_CALLING_TIMES_STAGES=3
+USE_OCT_COEFFICIENT=False
+OCT_COEFFICIENT=1
+REWARD_RULE=f1
+NO_POSITIVE_PENALTY=True
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --train_files) TRAIN_FILES="$2"; shift 2;;
@@ -57,9 +71,24 @@ while [[ $# -gt 0 ]]; do
         --total_epochs) TOTAL_EPOCHS="$2"; shift 2;;
         --wandb_api_key) WANDB_API_KEY="$2"; shift 2;;
         --save_path) SAVE_PATH="$2"; shift 2;;
+        --apply_chat) APPLY_CHAT="$2"; shift 2;;
+        --search_mode) SEARCH_MODE="$2"; shift 2;;
+        --max_calling_times) MAX_CALLING_TIMES="$2"; shift 2;;
+        --top_n) TOP_N="$2"; shift 2;;
+        --mix_rules) MIX_RULES="$2"; shift 2;;
+        --qa_rule) QA_RULE="$2"; shift 2;;
+        --is_multi_tool) IS_MULTI_TOOL="$2"; shift 2;;
+        --progressive_calling_times_stages) PROGRESSIVE_CALLING_TIMES_STAGES="$2"; shift 2;;
+        --kl_loss_coef) KL_LOSS_COEF="$2"; shift 2;;
+        --val_before_train) VAL_BEFORE_TRAIN="$2"; shift 2;;
+        --use_oct_cofficient) USE_OCT_COEFFICIENT="$2"; shift 2;;
+        --oct_penalty) OCT_PENALTY="$2"; shift 2;;
+        --oct_coef) OCT_COEFFICIENT="$2"; shift 2;;
+        --reward_rule) REWARD_RULE="$2"; shift 2;;
+        --no_positive_penalty) NO_POSITIVE_PENALTY="$2"; shift 2;;
         *)
             echo "unknown argument '$1'" >&2
-            exit 1;;
+            # exit 1;;THREEGOLDCHANGE
     esac
 done
 
@@ -76,10 +105,11 @@ ROLLOUT_SAVE_PATH=${SAVE_PATH}/rollout
 if [ ! -d "$ROLLOUT_SAVE_PATH" ]; then
     mkdir -p $ROLLOUT_SAVE_PATH
 fi
-
+echo "ROLLOUT_SAVE_PATH: $ROLLOUT_SAVE_PATH"
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
     algorithm.kl_ctrl.kl_coef=0.001 \
+    algorithm.oct_penalty=${OCT_PENALTY} \
     data.train_files="$TRAIN_FILES" \
     data.val_files="$TEST_FILES" \
     data.prompt_key=${PROMPT_KEY} \
@@ -97,8 +127,11 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.ppo_mini_batch_size=${PPO_MINI_BATCH_SIZE} \
     actor_rollout_ref.actor.use_dynamic_bsz=True \
     actor_rollout_ref.actor.ppo_max_token_len_per_gpu=$((2*(MAX_PROMPT_LENGTH+MAX_RESPONSE_LENGTH))) \
+    actor_rollout_ref.actor.use_oct_cofficient=${USE_OCT_COEFFICIENT} \
+    actor_rollout_ref.actor.oct_coef=${OCT_COEFFICIENT} \
+    actor_rollout_ref.actor.no_positive_penalty=${NO_POSITIVE_PENALTY} \
     actor_rollout_ref.actor.use_kl_loss=True \
-    actor_rollout_ref.actor.kl_loss_coef=0.001 \
+    actor_rollout_ref.actor.kl_loss_coef=${KL_LOSS_COEF} \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
     actor_rollout_ref.actor.fsdp_config.param_offload=False \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
@@ -114,16 +147,18 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=$((4*(MAX_PROMPT_LENGTH+MAX_RESPONSE_LENGTH))) \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     reward_model.reward_manager=${REWARD_MANAGER} \
+    reward_model.reward_rule=${REWARD_RULE} \
     trainer.critic_warmup=0 \
     trainer.logger="[console, wandb]" \
     trainer.project_name=${PROJECT_NAME} \
     trainer.experiment_name=${EXPERIMENT_NAME} \
-    trainer.n_gpus_per_node=8 \
+    trainer.n_gpus_per_node=${N_GPUS_PER_NODE} \
     trainer.nnodes=${NNODES} \
     trainer.save_freq=${SAVE_FREQ} \
     trainer.test_freq=${TEST_FREQ} \
     trainer.total_epochs=${TOTAL_EPOCHS} \
+    trainer.val_before_train=${VAL_BEFORE_TRAIN}\
     trainer.default_hdfs_dir=null \
     trainer.default_local_dir=${SAVE_PATH} \
     trainer.rollout_save_path=${ROLLOUT_SAVE_PATH} \
-    hydra.run.dir=$CHECKPOINT_SAVE/outputs | tee $CHECKPOINT_SAVE/run.log
+    hydra.run.dir=$SAVE_PATH/outputs | tee $SAVE_PATH/run.log

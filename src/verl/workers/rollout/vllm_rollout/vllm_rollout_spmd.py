@@ -463,11 +463,26 @@ class vLLMRolloutWithTool(vLLMRollout):
                 for env in prompts.non_tensor_batch['env']:
                     for _ in range(self.sampling_params.n):
                         env_list.append(env)
-
+            # THREEGOLDCHANGE
+            cost_dict_list = None
+            if "cost_dict" in prompts.non_tensor_batch:
+                cost_dict_list = []
+                for cost_dict in prompts.non_tensor_batch['cost_dict']:
+                    for _ in range(self.sampling_params.n):
+                        cost_dict_list.append(cost_dict)
+            else:
+                pass
+            tool_pattern = r'"name"\s*:\s*"([^"]+)"'
+            # THREEGOLDCHANGE
+            
             # track the status of each input
             curr_max_tokens = [self.sampling_params.max_tokens] * len(curr_inputs)
             active_indices = list(range(len(curr_inputs)))
-
+            # Add counter to track function calls for each sample
+            call_counters = [0] * len(curr_inputs)
+            if cost_dict_list is not None:
+                cost_counters = [0] * len(curr_inputs)  
+            
             # collect the result mask of each rollout, 1 for non-result, 0 for tool call result or pad
             result_mask_list = [[] for _ in range(len(curr_inputs))]
 
@@ -505,9 +520,9 @@ class vLLMRolloutWithTool(vLLMRollout):
                     output_ids = outputs[i].outputs[0].token_ids
                     finish_reason = outputs[i].outputs[0].finish_reason
                     stop_reason = outputs[i].outputs[0].stop_reason
-                    
+                    # stop by eos token或者pad_token_id
                     if finish_reason == 'stop' and (stop_reason == None or stop_reason == self.tokenizer.pad_token_id):
-                        curr_inputs[idx] += output_ids
+                        curr_inputs[idx] += output_ids 
                         result_mask_list[idx] += [1] * len(output_ids)
 
                         output_str = self.tokenizer.decode(output_ids)
@@ -515,15 +530,33 @@ class vLLMRolloutWithTool(vLLMRollout):
                         if tool_calls:
                             tool_calls_list.append(tool_calls)
                             call_indices.append(idx)
-                            new_active_indices.append(idx)
+                            new_active_indices.append(idx) #TODO:计算工具调用次数
+                            #THREEGOLDCHANGE
+                            for tool_call in tool_calls:
+                                call_counters[idx] += 1
+                                try:
+                                    tool_call = json.loads(tool_call)
+                                    if cost_dict_list is not None:
+                                        cost_counters[idx] += cost_dict_list[idx][tool_call["name"]]
+                                except Exception as e:
+                                    print(f"Error evaluating tool call: {e} add max cost, try re")
+                                    try:
+                                        tool_call = re.search(tool_pattern,tool_call).group(1)
+                                        if cost_dict_list is not None:
+                                            cost_counters[idx] += cost_dict_list[idx][tool_call]
+                                    except Exception as e:
+                                        print(f"Error evaluating tool call: {e} add max cost, try re")
+                                        if cost_dict_list is not None:
+                                            cost_counters[idx] += max([cost for _,cost in cost_dict_list[idx].items()])
+                            #THREEGOLDCHANGE
                         else:
                             pass # no tool calls
-                    elif finish_reason == 'length':
+                    elif finish_reason == 'length': #超过长度了
                         # output over max tokens
                         curr_inputs[idx] += output_ids
                         result_mask_list[idx] += [1] * len(output_ids)
                     elif finish_reason == 'stop' and stop_reason == 151644: # 151644 is the id of <|im_start|>, is a illigal stop, we stop here
-                        curr_inputs[idx] += output_ids
+                        curr_inputs[idx] += output_ids #illeagal stop:这么说来，Tool-Star可能不需要这个判断
                         result_mask_list[idx] += [1] * len(output_ids)
                     else:
                         raise ValueError(f"unknown stop reason. finish_reason: {finish_reason}, stop_reason: {stop_reason}")
@@ -639,7 +672,11 @@ class vLLMRolloutWithTool(vLLMRollout):
             'input_ids': seq,  # here input_ids become the whole sentences
             'attention_mask': attention_mask,
             'loss_mask': loss_mask,
-            'position_ids': position_ids
+            'position_ids': position_ids,
+            #THREEGOLDCHANGE
+            "call_counters":  torch.tensor(call_counters, device=ori_input_ids.device),
+            "cost_counters":  torch.zeros(batch_size, device=ori_input_ids.device) if cost_dict_list is None else torch.tensor(cost_counters, device=ori_input_ids.device),
+            #THREEGOLDCHANGE
         }, batch_size=batch_size)
 
         # free vllm cache engine

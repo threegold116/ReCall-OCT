@@ -19,7 +19,10 @@ from verl.trainer.ppo.ray_trainer import RayPPOTrainer
 import os
 import ray
 import hydra
-
+#THREEGOLDCHANGE: 设置随机种子  
+import random
+random.seed(42)
+#THREEGOLDCHANGE
 
 def get_custom_reward_fn(config):
     import importlib.util, sys
@@ -63,16 +66,53 @@ def run_ppo(config) -> None:
     # TODO(linjunrong.ocss884): this ENV is left for resolving SGLang conflict with ray devices
     # isolation, will solve in the future
     os.environ["ENSURE_CUDA_VISIBLE_DEVICES"] = os.environ.get('CUDA_VISIBLE_DEVICES', '')
-    if not ray.is_initialized():
-        # this is for local ray cluster
-        ray.init(runtime_env={
-            'env_vars': {
-                'TOKENIZERS_PARALLELISM': 'true',
+    print(__file__)
+    # 使用用户目录下的临时文件夹而不是系统文件夹
+    temp_dir = os.path.join(os.path.expanduser("~"), "ray_tmp")
+    os.makedirs(temp_dir, exist_ok=True)
+    # ray.init(
+    #     runtime_env={'env_vars': {'TOKENIZERS_PARALLELISM': 'true', 'NCCL_DEBUG': 'WARN'}},
+    #     num_cpus=10,
+    #     _temp_dir=temp_dir  # 指定临时目录
+    # )
+    
+    # if not ray.is_initialized():
+    #     # this is for local ray cluster
+    #     ray.init(runtime_env={
+    #         'env_vars': {
+    #             'TOKENIZERS_PARALLELISM': 'true',
+    #             'NCCL_DEBUG': 'WARN',
+    #             'VLLM_LOGGING_LEVEL': 'WARN'
+    #         }
+    #     })
+    if "0" in os.environ.get("RAY_DEBUG_MODE","0"):
+        info=ray.init(
+            address="local",
+            logging_level="debug",
+            runtime_env={'env_vars': 
+                {'TOKENIZERS_PARALLELISM': 'true', 
                 'NCCL_DEBUG': 'WARN',
                 'VLLM_LOGGING_LEVEL': 'WARN'
-            }
-        })
-
+                # 'RAY_DEBUG_POST_MORTEM': '1',
+                # "RAY_DEBUG":"1"
+                }
+                }
+            )
+        print("no debug mode")
+    else:
+        info=ray.init(
+            address="local",
+            logging_level="debug",
+            runtime_env={'env_vars': 
+                {'TOKENIZERS_PARALLELISM': 'true', 
+                'NCCL_DEBUG': 'WARN',
+                'RAY_DEBUG_POST_MORTEM': '1',
+                "RAY_DEBUG":"1",
+                'VLLM_LOGGING_LEVEL': 'WARN'
+                }
+                }
+            )
+    print(info)
     runner = TaskRunner.remote()
     ray.get(runner.run.remote(config))
 
@@ -87,7 +127,8 @@ class TaskRunner:
         from omegaconf import OmegaConf
         pprint(OmegaConf.to_container(config, resolve=True))  # resolve=True will eval symbol values
         OmegaConf.resolve(config)
-
+        if "1" in os.environ.get("RAY_DEBUG_MODE","0"):
+            breakpoint()
         # download the checkpoint from hdfs
         local_path = copy_to_local(config.actor_rollout_ref.model.path)
 
@@ -171,13 +212,16 @@ class TaskRunner:
             raise NotImplementedError
 
         compute_score = get_custom_reward_fn(config)
-        if config.reward_model.reward_manager == 're_call':
+        reward_rule = config.reward_model.get('reward_rule', "f1")
+        if config.reward_model.reward_manager == 're_call': #TODO: check save_path initi
             reward_fn = reward_manager_cls(tokenizer=tokenizer, 
                                            num_examine=0, 
-                                           compute_score=compute_score)
+                                           compute_score=compute_score,
+                                               reward_rule=reward_rule)
             val_reward_fn = reward_manager_cls(tokenizer=tokenizer, 
                                                num_examine=1, 
-                                               compute_score=compute_score)
+                                               compute_score=compute_score,
+                                               reward_rule=reward_rule)
         else:
             reward_kwargs = dict(config.reward_model.get("reward_kwargs", {}))
             reward_fn = reward_manager_cls(tokenizer=tokenizer,

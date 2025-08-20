@@ -39,7 +39,7 @@ Then install dependencies, and the packages under ```src/``` will be installed i
 git clone https://github.com/Agent-RL/ReCall.git
 cd ReCall
 pip3 install -e .
-pip3 install flash-attn --no-build-isolation
+pip3 install flash-attn==2.7.4.post1 --no-build-isolation
 ```
 If you want to host a Wikipedia RAG system based on FlashRAG, you need to install faiss-gpu as follow. As described in the [FlashRAG](https://github.com/RUC-NLPIR/FlashRAG?tab=readme-ov-file#wrench-installation), due to the incompatibility when installing faiss using pip, we need to use the following conda command to install faiss-gpu.
 ```bash
@@ -98,7 +98,7 @@ bash train.sh \
     --n_gpus_per_node 4 \
     --save_freq 5 \
     --test_freq 5 \
-    --total_epochs 2 \
+    --total_epochs 2 \  
     --wandb_api_key {your-wandb-api-key} \
     --save_path {path/to/save} \
     --train_files "['train1.parquet', 'train2.parquet']" \
