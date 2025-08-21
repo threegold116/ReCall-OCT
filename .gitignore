@@ -30,6 +30,7 @@ pyproject.toml
 uv.lock
 .env
 **/verl_checkpoints/**
+**/transfer_checkpoints/**
 **/wandb/**
 **/ReCall-data/**
 **/tempCodeRunnerFile.py
