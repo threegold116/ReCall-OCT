@@ -40,6 +40,7 @@ git clone https://github.com/Agent-RL/ReCall.git
 cd ReCall
 pip3 install -e .
 pip3 install flash-attn==2.7.4.post1 --no-build-isolation
+pip install math_verify
 ```
 If you want to host a Wikipedia RAG system based on FlashRAG, you need to install faiss-gpu as follow. As described in the [FlashRAG](https://github.com/RUC-NLPIR/FlashRAG?tab=readme-ov-file#wrench-installation), due to the incompatibility when installing faiss using pip, we need to use the following conda command to install faiss-gpu.
 ```bash
