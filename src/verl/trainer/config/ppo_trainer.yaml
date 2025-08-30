@@ -96,6 +96,9 @@ actor_rollout_ref:
     use_fire_sampling: False # https://arxiv.org/abs/2410.21236
     prompt_length: ${data.max_prompt_length}  # not use for opensource
     response_length: ${data.max_response_length}
+    #THREEGOLDCHANGE
+    max_step_response_lenght: 512
+    #THREEGOLDCHANGE
     # for vllm rollout
     dtype: bfloat16 # should align with FSDP
     gpu_memory_utilization: 0.5
@@ -189,6 +192,7 @@ reward_model:
   reward_manager: naive
   #THREEGOLDCHANGE
   reward_rule: f1
+  f1_threshold: 0.5
   #THREEGOLDCHANGE
 
 custom_reward_function:
@@ -235,3 +239,6 @@ trainer:
   # The timeout for ray worker group to wait for the register center to be ready
   ray_wait_register_center_timeout: 300
   rollout_save_path: null
+  #THREEGOLDCHANGE
+  progressive_calling_times_stages: 3
+  #THREEGOLDCHANGE

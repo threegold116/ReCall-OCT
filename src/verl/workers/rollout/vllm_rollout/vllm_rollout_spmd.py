@@ -430,6 +430,10 @@ class vLLMRolloutWithTool(vLLMRollout):
 
         do_sample = prompts.meta_info.get('do_sample', True)
         is_validate = prompts.meta_info.get('validate', False)
+        
+        #THREEGOLDCHANGE
+        max_step_response_lenght = self.config.get("max_step_response_lenght",512)        
+        #THREEGOLDCHANGE
         if not do_sample:
             kwargs = {
                 'best_of': 1,
@@ -494,16 +498,20 @@ class vLLMRolloutWithTool(vLLMRollout):
                 # only process the active inputs
                 active_inputs = [curr_inputs[i] for i in active_indices]
                 active_max_tokens = [curr_max_tokens[i] for i in active_indices]
-                
+                #THREEGOLDCHANGE
+                #from 512 2 1024
+                #THREEGOLDCHANGE
                 with self.update_sampling_params(
                     n=1, 
-                    max_tokens=min(512, max(active_max_tokens)),
+                    max_tokens=min(max_step_response_lenght, max(active_max_tokens)),
+                    # max_tokens=max(active_max_tokens),
                     stop_token_ids=[151644],
                     top_p=0.99,
                 ):  # 512 at most, and add <|im_start|> as stop for corner case
                     vllm_inputs = [{
                         'prompt_token_ids': raw_prompt_ids
                     } for raw_prompt_ids in active_inputs]
+                    print(self.sampling_params)
                     outputs = self.inference_engine.generate(
                         prompts=vllm_inputs,
                         sampling_params=self.sampling_params,
@@ -539,13 +547,13 @@ class vLLMRolloutWithTool(vLLMRollout):
                                     if cost_dict_list is not None:
                                         cost_counters[idx] += cost_dict_list[idx][tool_call["name"]]
                                 except Exception as e:
-                                    print(f"Error evaluating tool call: {e} add max cost, try re")
+                                    # print(f"Error evaluating tool call: {e} add max cost, try re")
                                     try:
                                         tool_call = re.search(tool_pattern,tool_call).group(1)
                                         if cost_dict_list is not None:
                                             cost_counters[idx] += cost_dict_list[idx][tool_call]
                                     except Exception as e:
-                                        print(f"Error evaluating tool call: {e} add max cost, try re")
+                                        print(f"Error evaluating tool call {tool_call}: {e} add max cost, try re")
                                         if cost_dict_list is not None:
                                             cost_counters[idx] += max([cost for _,cost in cost_dict_list[idx].items()])
                             #THREEGOLDCHANGE
@@ -684,3 +692,6 @@ class vLLMRolloutWithTool(vLLMRollout):
             self.inference_engine.free_cache_engine()
 
         return DataProto(batch=batch)
+    def update_max_turns(self,max_turns):
+        print(f"--------------------------------update max calling times from {self.config.max_turns} to {max_turns}--------------------------------")
+        self.config.max_turns = max_turns

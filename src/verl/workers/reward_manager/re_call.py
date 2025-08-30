@@ -21,12 +21,13 @@ class ReCallRewardManagerWithSave():
     """The reward manager.
     """
 
-    def __init__(self, tokenizer, num_examine, compute_score=None, save_path=None,reward_rule="f1") -> None:
+    def __init__(self, tokenizer, num_examine, compute_score=None, save_path=None,reward_rule="f1",f1_threshold=0.5) -> None:
         self.tokenizer = tokenizer
         self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
         self.compute_score = compute_score or _default_compute_score
         self.save_path = save_path
         self.reward_rule = reward_rule
+        self.f1_threshold = f1_threshold
 
     def __call__(self, data: DataProto, return_dict=False, curr_save_path=None):
         """We will expand this function gradually based on the available datasets"""
@@ -75,6 +76,7 @@ class ReCallRewardManagerWithSave():
                 solution_str=sequences_str,
                 ground_truth=ground_truth,
                 reward_rule=self.reward_rule,
+                f1_threshold=self.f1_threshold,
             )
             if isinstance(score, tuple):
                 score, reason = score

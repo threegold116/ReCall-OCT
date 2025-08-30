@@ -861,7 +861,35 @@ class RayPPOTrainer(object):
         # we start from step 1
         self.global_steps += 1
         last_val_metrics = None
-
+        #THREEGOLDCHANGE: progressive calling times TODO:Check oct_ctrl和progressive_calling_steps的更新
+        if self.config.actor_rollout_ref.rollout.max_turns>3:
+            down_progressive=True
+        else:
+            down_progressive=False
+        
+        if self.config.trainer.progressive_calling_times_stages>0: 
+            self.phase_start = 1 #记录上一个progressive开始的位置
+            #说明时resume训练
+            if self.global_steps>1:
+                resume_steps = self.global_steps - 1
+                progressive_calling_steps = int(self.total_training_steps/self.config.trainer.progressive_calling_times_stages)
+                progressive_update_times = resume_steps//progressive_calling_steps
+                if not down_progressive:
+                    self.config.actor_rollout_ref.rollout.max_turns += progressive_update_times
+                else:
+                    self.config.actor_rollout_ref.rollout.max_turns -= progressive_update_times
+                self.actor_rollout_wg.rollout_update_max_turns(self.config.actor_rollout_ref.rollout.max_turns)
+                print(f"--------------------------------resume progressive calling times add from {self.config.actor_rollout_ref.rollout.max_turns-progressive_update_times} to {self.config.actor_rollout_ref.rollout.max_turns}--------------------------------")
+                if self.config.actor_rollout_ref.actor.use_oct_cofficient:
+                    if not down_progressive:
+                        self.oct_ctrl.smooth += progressive_update_times
+                    else:
+                        self.oct_ctrl.smooth -= progressive_update_times
+                    print(f"--------------------------------oct smooth add from {self.oct_ctrl.smooth-progressive_update_times} to {self.oct_ctrl.smooth}--------------------------------")           
+                self.phase_start = 1 + progressive_update_times*progressive_calling_steps
+            print(f"-------phase_start: {self.phase_start}-------")
+        #THREEGOLDCHANGE
+            
         for epoch in range(self.config.trainer.total_epochs):
             for batch_dict in self.train_dataloader:
                 metrics = {}
@@ -1062,3 +1090,28 @@ class RayPPOTrainer(object):
                 print(f"step {self.global_steps} timing_raw:")
                 for key,value in timing_raw.items():
                     print(f'{key}: {value}')
+                
+                # THREEGOLDCHANGE: progressive calling times
+                if "1" in os.environ.get("RAY_DEBUG_MODE","0"):
+                    breakpoint()
+                if self.config.trainer.progressive_calling_times_stages>0:
+                    if self.global_steps - self.phase_start >= self.total_training_steps * (1/self.config.trainer.progressive_calling_times_stages):
+                        print(f"-------phase_start: {self.phase_start}-------")
+                        print(f"-------global_steps: {self.global_steps}-------")
+                        
+                        self.phase_start = self.global_steps
+                        if not down_progressive:
+                            self.config.actor_rollout_ref.rollout.max_turns += 1
+                            print(f"--------------------------------progressive calling times add from {self.config.actor_rollout_ref.rollout.max_turns-1} to {self.config.actor_rollout_ref.rollout.max_turns}--------------------------------")
+                        else:
+                            self.config.actor_rollout_ref.rollout.max_turns -= 1
+                            print(f"--------------------------------progressive calling times add from {self.config.actor_rollout_ref.rollout.max_turns+1} to {self.config.actor_rollout_ref.rollout.max_turns}--------------------------------")
+                        self.actor_rollout_wg.rollout_update_max_turns(self.config.actor_rollout_ref.rollout.max_turns)
+                        if self.config.actor_rollout_ref.actor.use_oct_cofficient:
+                            if not down_progressive:
+                                self.oct_ctrl.smooth += 1
+                                print(f"--------------------------------oct smooth add from {self.oct_ctrl.smooth-1} to {self.oct_ctrl.smooth}--------------------------------")
+                            else:
+                                self.oct_ctrl.smooth -= 1
+                                print(f"--------------------------------oct smooth add from {self.oct_ctrl.smooth+1} to {self.oct_ctrl.smooth}--------------------------------")                                                    
+                # THREEGOLDCHANGE: progressive calling times

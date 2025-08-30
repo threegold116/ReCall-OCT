@@ -213,15 +213,18 @@ class TaskRunner:
 
         compute_score = get_custom_reward_fn(config)
         reward_rule = config.reward_model.get('reward_rule', "f1")
+        f1_threshold = config.reward_model.get('f1_threshold',0.5)
         if config.reward_model.reward_manager == 're_call': #TODO: check save_path initi
             reward_fn = reward_manager_cls(tokenizer=tokenizer, 
                                            num_examine=0, 
                                            compute_score=compute_score,
-                                               reward_rule=reward_rule)
+                                               reward_rule=reward_rule,
+                                               f1_threshold=f1_threshold)
             val_reward_fn = reward_manager_cls(tokenizer=tokenizer, 
                                                num_examine=1, 
                                                compute_score=compute_score,
-                                               reward_rule=reward_rule)
+                                               reward_rule=reward_rule,
+                                               f1_threshold=f1_threshold)
         else:
             reward_kwargs = dict(config.reward_model.get("reward_kwargs", {}))
             reward_fn = reward_manager_cls(tokenizer=tokenizer,

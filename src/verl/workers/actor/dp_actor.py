@@ -17,7 +17,7 @@ Single Process Actor
 
 import itertools
 from typing import Iterable, Tuple
-
+import os
 import torch
 from torch import nn
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
@@ -254,7 +254,6 @@ class DataParallelPPOActor(BasePPOActor):
             dataloader = data.select(select_keys, non_tensor_select_keys).chunk(num_mini_batches)
         else:
             dataloader = batch.split(self.config.ppo_mini_batch_size)
-
         metrics = {}
         for epoch in range(self.config.ppo_epochs):
             for batch_idx, data in enumerate(dataloader):
@@ -307,7 +306,8 @@ class DataParallelPPOActor(BasePPOActor):
                         cliprange=clip_ratio,
                         cliprange_low=clip_ratio_low,
                         cliprange_high=clip_ratio_high,
-                        clip_ratio_c=clip_ratio_c)
+                        clip_ratio_c=clip_ratio_c,
+                        loss_agg_mode=loss_agg_mode)
                     # compute entropy loss from entropy
                     entropy_loss = agg_loss(loss_mat=entropy, loss_mask=response_mask, loss_agg_mode=loss_agg_mode)
 
