@@ -29,7 +29,10 @@ outputs/
 pyproject.toml
 uv.lock
 .env
+**/berkeley-function-call-leaderboard/**
+**/transfer_checkpoints/**
 **/verl_checkpoints/**
+**/transfer_checkpoints/**
 **/wandb/**
 **/ReCall-data/**
 **/tempCodeRunnerFile.py
