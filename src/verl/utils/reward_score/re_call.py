@@ -193,7 +193,16 @@ def get_binary_score(answer,ground_truths):
         if is_equiv(answer, ground_truth) or em_check(answer, ground_truth):
             return 1.0
     return 0
+
+def get_binary_f1_score(answer,ground_truths,f1_threshold=0.5):
+    if isinstance(ground_truths, str):
+        ground_truths = [ground_truths]
+    for ground_truth in ground_truths:
+        if is_equiv(answer, ground_truth) or em_check(answer, ground_truth) or get_f1_score(answer, ground_truth) >= f1_threshold:
+            return 1.0
+    return 0
     
+
 #THREEGOLDCHANGE
 
 #THREEGOLDCHANGE
@@ -213,6 +222,29 @@ def compute_binary_score_with_format(tokenizer, solution_str, ground_truth) -> t
         return -1, f'find box error: {e}'
 
     binary_score = get_binary_score(answer, ground_truth)
+    if binary_score > 0:
+        return binary_score, f'correct answer, get binary score: {binary_score}'
+    else:
+        return 0, f'wrong answer in binary but good format: {answer}'
+#THREEGOLDCHANGE
+
+#THREEGOLDCHANGE
+def compute_binary_f1_score_with_format(tokenizer, solution_str, ground_truth,f1_threshold=0.5) -> tuple[float, str]:
+    if not solution_str.endswith(tokenizer.eos_token):
+        return -1, f'not end with eos token'
+    
+    valid_template, reason = validate_template_format(solution_str)
+    if not valid_template:
+        return -1, f'bad format: {reason}'
+    else:
+        response = reason
+
+    try:
+        answer = remove_boxed(last_boxed_only_string(response))
+    except Exception as e:
+        return -1, f'find box error: {e}'
+
+    binary_score = get_binary_f1_score(answer, ground_truth,f1_threshold=f1_threshold)
     if binary_score > 0:
         return binary_score, f'correct answer, get binary score: {binary_score}'
     else:

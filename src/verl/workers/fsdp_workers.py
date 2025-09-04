@@ -462,7 +462,8 @@ class ActorRolloutRefWorker(Worker):
             load_fsdp_optimizer(optimizer=self.actor_optimizer, device_id=torch.cuda.current_device())
 
         log_gpu_memory_usage('Before update policy', logger=logger)
-
+        if '3' in os.environ.get('RAY_DEBUG_MODE', '0') and self.rank == 0:
+            breakpoint()
         with self.ulysses_sharding_manager:
             data = self.ulysses_sharding_manager.preprocess_data(data=data)
             # perform training
@@ -629,7 +630,9 @@ class ActorRolloutRefWorker(Worker):
 
         if self._is_offload_optimizer:
             offload_fsdp_optimizer(self.actor_optimizer)
-
+    @register(dispatch_mode=Dispatch.ONE_TO_ALL)
+    def rollout_update_max_turns(self,max_turns):
+        self.rollout.update_max_turns(max_turns)
 
 class CriticWorker(Worker):
 

@@ -39,6 +39,11 @@ uv.lock
 **/wandb/**
 **/ReCall-data/**
 **/tempCodeRunnerFile.py
+**/analyse/**
+**/verl_checkpoints/**
+**/transfer_checkpoints/**
+re.md
+re.md
 **/*.json
 **/tmp/
 **/toolenv2025toolbench/

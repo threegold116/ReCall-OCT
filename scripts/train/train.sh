@@ -11,7 +11,7 @@ ROLLOUT_NAME=vllm_with_tool
 REWARD_MANAGER=re_call
 ROLLOUT_N=5
 ROLLOUT_TP=1
-ROLLOUT_GPU_UTIL=0.7
+ROLLOUT_GPU_UTIL=0.5
 MAX_TURNS=5
 SEARCH_URL=/your/search/url
 SANDBOX_URL=/your/sandbox/url
@@ -40,7 +40,10 @@ PROGRESSIVE_CALLING_TIMES_STAGES=3
 USE_OCT_COEFFICIENT=False
 OCT_COEFFICIENT=1
 REWARD_RULE=f1
+MAX_STEP_RESPONSE_LENGTH=512
 NO_POSITIVE_PENALTY=True
+LOSS_AGG_MODE=token-mean
+F1_THRESHOLD=0.5
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --train_files) TRAIN_FILES="$2"; shift 2;;
@@ -85,7 +88,10 @@ while [[ $# -gt 0 ]]; do
         --oct_penalty) OCT_PENALTY="$2"; shift 2;;
         --oct_coef) OCT_COEFFICIENT="$2"; shift 2;;
         --reward_rule) REWARD_RULE="$2"; shift 2;;
+        --f1_threshold) F1_THRESHOLD="$2"; shift 2;;
         --no_positive_penalty) NO_POSITIVE_PENALTY="$2"; shift 2;;
+        --max_step_response_length) MAX_STEP_RESPONSE_LENGTH="$2"; shift 2;;
+        --loss_agg_mode) LOSS_AGG_MODE="$2"; shift 2;;
         *)
             echo "unknown argument '$1'" >&2
             # exit 1;;THREEGOLDCHANGE
@@ -133,12 +139,14 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.use_kl_loss=True \
     actor_rollout_ref.actor.kl_loss_coef=${KL_LOSS_COEF} \
     actor_rollout_ref.actor.kl_loss_type=low_var_kl \
+    actor_rollout_ref.actor.loss_agg_mode=${LOSS_AGG_MODE} \
     actor_rollout_ref.actor.fsdp_config.param_offload=False \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
     actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=$((4*(MAX_PROMPT_LENGTH+MAX_RESPONSE_LENGTH))) \
     actor_rollout_ref.rollout.tensor_model_parallel_size=${ROLLOUT_TP} \
     actor_rollout_ref.rollout.name=${ROLLOUT_NAME} \
     actor_rollout_ref.rollout.gpu_memory_utilization=${ROLLOUT_GPU_UTIL} \
+    actor_rollout_ref.rollout.max_step_response_lenght=${MAX_STEP_RESPONSE_LENGTH} \
     actor_rollout_ref.rollout.n=${ROLLOUT_N} \
     actor_rollout_ref.rollout.max_turns=${MAX_TURNS} \
     actor_rollout_ref.rollout.sandbox_url=${SANDBOX_URL} \
@@ -148,6 +156,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     reward_model.reward_manager=${REWARD_MANAGER} \
     reward_model.reward_rule=${REWARD_RULE} \
+    reward_model.f1_threshold=${F1_THRESHOLD} \
     trainer.critic_warmup=0 \
     trainer.logger="[console, wandb]" \
     trainer.project_name=${PROJECT_NAME} \
@@ -158,6 +167,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.test_freq=${TEST_FREQ} \
     trainer.total_epochs=${TOTAL_EPOCHS} \
     trainer.val_before_train=${VAL_BEFORE_TRAIN}\
+    trainer.progressive_calling_times_stages=${PROGRESSIVE_CALLING_TIMES_STAGES} \
     trainer.default_hdfs_dir=null \
     trainer.default_local_dir=${SAVE_PATH} \
     trainer.rollout_save_path=${ROLLOUT_SAVE_PATH} \
