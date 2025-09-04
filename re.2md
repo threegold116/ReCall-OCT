@@ -1,0 +1,18 @@
+rsync -azvvP -e 'ssh -p 2222 -i /share/home/sxjiang/.ssh/id_rsa' -r /share/home/sxjiang/myproject/ReCall-OCT/transfer_checkpoints/Qwen2.5-3B-Instruct-zero-52-grpo-oct-think-512-epoch1-binary_f1-0.3-seq_mean_token_mean-down_progressive_5-times-global_step_78 sxjiang@10.160.22.46:/home/sxjiang/myproject/agent/ReCall-OCT/transfer_checkpoints/
+
+rsync -azvvP -e 'ssh -p 2223 -i /share/home/sxjiang/.ssh/id_rsa' -r /share/home/sxjiang/myproject/Tool-Star-OCT/transfer_checkpoints/Qwen2.5-3B-Instruct-final_sft_edition10-52-grpo_debug-bz_128-clip_ratio_0.28_one_epoch_tool_star_new_f1_score_no_warm_up-global_step_78 sxjiang@10.160.22.46:/home/sxjiang/myproject/agent/Tool-Star-OCT/transfer_checkpoints/
+
+
+/miniconda3/envs/toolstar/bin/python
+export LD_LIBRARY_PATH=$HOME/miniconda3/envs/toolstar/lib/python3.10/site-packages/nvidia/nvjitlink/lib:$LD_LIBRARY_PATH
+
+# Merge RL weights and save in the same path.
+python /share/home/sxjiang/myproject/Tool-Star-OCT/Tool_Star_RL/model_merger.py\  --local_dir //share/home/sxjiang/myproject/Tool-Star-OCT/Tool_Star_RL/verl_checkpoints/Qwen2.5-3B-Instruct-final_sft_edition10-52-grpo_debug-bz_128/global_step_156/actor/ 
+
+cp -r /share/home/sxjiang/myproject/ReCall-OCT/verl_checkpoints/Qwen2.5-3B-Instruct-zero-52-grpo-oct-think-512-epoch1-binary_f1-0.3-seq_mean_token_mean-down_progressive_5-times/global_step_78/actor/huggingface  /share/home/sxjiang/myproject/ReCall-OCT/transfer_checkpoints/Qwen2.5-3B-Instruct-zero-52-grpo-oct-think-512-epoch1-binary_f1-0.3-seq_mean_token_mean-down_progressive_5-times-global_step_78
+
+/share/home/sxjiang/miniconda3/envs/toolstar2/lib/python3.10/site-packages/pyairports-2.1.1.dist-info
+/share/home/sxjiang/miniconda3/envs/toolstar2/lib/python3.10/site-packages/pyairports
+
+
+modelscope download --model 'Qwen/Qwen2.5-72B-Instruct-GPTQ-Int4' --local_dir './Qwen2.5-72B-Instruct-GPTQ-Int4'
