@@ -16,7 +16,8 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
-*.sh
+**/*.sh
+**/*.csv
 # vscode
 .vscode
 
@@ -33,6 +34,12 @@ uv.lock
 **/transfer_checkpoints/**
 **/verl_checkpoints/**
 **/transfer_checkpoints/**
+**/result/**
+**/metrics/**
 **/wandb/**
 **/ReCall-data/**
 **/tempCodeRunnerFile.py
+**/*.json
+**/tmp/
+**/toolenv2025toolbench/
+**/toolenv2404_filtered/
