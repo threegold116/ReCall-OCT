@@ -40,7 +40,7 @@ For each function call, return a json object with function name and arguments wi
 {{"name": <function-name>, "arguments": <args-json-object>}}
 </tool_call>"""
 
-    def __init__(self, model_url, executor_url,task=""):
+    def __init__(self, model_url, executor_url,task="syntool_re_call"):
         self.model_url = model_url
         self.executor_url = executor_url
         

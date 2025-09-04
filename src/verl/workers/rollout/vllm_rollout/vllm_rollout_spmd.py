@@ -551,7 +551,7 @@ class vLLMRolloutWithTool(vLLMRollout):
                                     try:
                                         tool_call = re.search(tool_pattern,tool_call).group(1)
                                         if cost_dict_list is not None:
-                                            cost_counters[idx] += cost_dict_list[idx][tool_call]
+                                            cost_counters[idx] += cost_dict_list[idx][tool_call] #可能会出现tool_call不在cost_dict_list[idx]中的情况
                                     except Exception as e:
                                         print(f"Error evaluating tool call {tool_call}: {e} add max cost, try re")
                                         if cost_dict_list is not None:
