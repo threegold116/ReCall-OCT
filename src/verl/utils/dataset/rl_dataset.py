@@ -221,6 +221,8 @@ class RLHFDataset(Dataset):
                 prompt_with_chat_template = self._pack_re_call_input(self.prompt_template, row_dict['extra_info']['func_schemas'], chat)
             elif self.prompt_template_name == 're_call_template_budget_sys':
                 prompt_with_chat_template,cost_dict = self._pack_re_call_budget_input(self.prompt_template, row_dict['extra_info']['func_schemas'], chat)
+            elif self.prompt_template_name == 're_call_template_times_sys':
+                prompt_with_chat_template = self._pack_re_call_input(self.prompt_template, row_dict['extra_info']['func_schemas'], chat)
         else:
             prompt_with_chat_template = self.tokenizer.apply_chat_template(chat, add_generation_prompt=True, tokenize=False)
 

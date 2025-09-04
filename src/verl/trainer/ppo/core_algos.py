@@ -578,10 +578,10 @@ def oct_times_penalty(data,oct_smooth):
     # 1.get_strings
     calling_times = []
     max_calling_times = 0
-    valid_actions = data.batch.get("valid_action",None)
+    call_counters = data.batch.get("call_counters",None)
     for i in range(len(data)):
-        calling_times.append(valid_actions[i])
-        max_calling_times = max(max_calling_times,valid_actions[i])
+        calling_times.append(call_counters[i].item())
+        max_calling_times = max(max_calling_times,call_counters[i])
 
     # 2.group_by_index
     index = data.non_tensor_batch['uid']
@@ -621,7 +621,7 @@ def oct_times_penalty(data,oct_smooth):
             if map_times==0 and optim_time==0:
                 oct_scores[i] = torch.tensor(1.0)
             elif optim_time==0:
-                oct_scores[i] = torch.cos(calling_time*torch.pi/(2*calling_time+oct_smooth))
+                oct_scores[i] = torch.cos(torch.tensor(calling_time*torch.pi/(2*calling_time+oct_smooth)))
             else:
-                oct_scores[i] = torch.sin(map_times*torch.pi/(2*optim_time))
+                oct_scores[i] = torch.sin(torch.tensor(map_times*torch.pi/(2*optim_time)))
         return oct_scores, calling_times_sum/bsz, max_calling_times
